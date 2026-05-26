@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.venv/
+env/
+venv/
+
+# HuggingFace / model caches
+.cache/
+huggingface/
+transformers_cache/
+*.bin
+*.safetensors
+
+# CUDA build artifacts
+*.o
+*.a
+*.lib
+*.dll
+*.dylib
+*.ptx
+build/
+dist/
+
+# PyTorch / checkpoints
+*.pt
+*.pth
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VSCode / IDE
+.vscode/
+.idea/
+
+# Mac/Linux
+.DS_Store

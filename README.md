@@ -1,0 +1,1 @@
+High-performance kernel fusion and runtime optimization system for Kimi-K2.6 BF16 models. Implements RMSNorm + Linear fusion, MoE-aware MLP optimization, and attention projection fusion using custom CUDA kernels and PyTorch graph patching. Designed to reduce memory bandwidth, kernel launches, and inference latency.
