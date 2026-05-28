@@ -62,11 +62,13 @@ kernel-fusion-kimi-k2-6-bf16/
 │       └── weight_transform.py  # compute_fused_weights: W_new = W × γ
 │
 ├── tests/
-│   └── verify_fusion.py         # 5-test correctness + throughput verification
+│   ├── verify_fusion.py         # 5-test correctness + throughput (save-then-patch, Kimi)
+│   └── verify_fusion_proxy.py   # dual-load numerical test on DeepSeek-V2-Lite proxy
 │
 ├── scripts/
 │   ├── setup_runtime.sh         # create venv, install PyTorch + dependencies
 │   ├── download_model.sh        # download bullerwins/Kimi-K2.6-bf16 (~2 TB)
+│   ├── download_proxy_model.sh  # download deepseek-ai/DeepSeek-V2-Lite (~31 GB)
 │   └── build_engine.sh          # orchestrate env + download + fusion + verify
 │
 ├── kimi_patch.py                # monkey-patches the HF model with fused modules
