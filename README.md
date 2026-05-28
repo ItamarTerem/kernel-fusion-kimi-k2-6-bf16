@@ -142,6 +142,11 @@ bash scripts/build_engine.sh
 This runs `run.py` to apply the fusion, then `tests/verify_fusion.py` to
 confirm correctness. You should see all five tests pass.
 
+> **Memory note:** the verification script loads the model only once.
+> It saves reference logits before patching, applies the fusion in-place,
+> then compares fused logits against the saved reference.
+> Peak GPU memory = one model (~2 TB BF16), not two.
+
 ---
 
 ## What the Verification Tests Check
@@ -153,7 +158,7 @@ confirm correctness. You should see all five tests pass.
 | 1 | **CUDA extension** — `denominator_cuda` loads; V1 and V3 kernels callable on a real BF16 tensor | No exception |
 | 2 | **Layer coverage** — all 61 decoder layers have `fused_input_ln`, `fused_q_b`, `fused_kv_b` | 0 modules missing |
 | 3 | **Norm disabled** — absorbed gamma vectors are all ones (norm is identity after fusion) | Max deviation < 1e-4 |
-| 4 | **Numerical equivalence** — logit max-abs-diff between fused and unfused model on the same prompt | < 5e-2 (BF16 tolerance) |
+| 4 | **Numerical equivalence** — logit max-abs-diff between fused logits and reference logits saved before patching (same model, same prompt) | < 5e-2 (BF16 tolerance) |
 | 5 | **Throughput** — tokens/sec fused vs unfused (50-token generation) | ≥ 0.98× (no regression) |
 
 Run them independently at any time:
@@ -166,8 +171,9 @@ python tests/verify_fusion.py \
 
 Options:
 - `--variant` — `V1`, `V2` (default), or `V3`
-- `--skip-numerical` — skip the logit comparison (saves loading the model twice)
 - `--skip-throughput` — skip the tokens/sec benchmark
+- `--prompt` — override the test prompt
+- `--throughput-tokens` — number of tokens to generate for the throughput test (default: 50)
 
 ---
 
