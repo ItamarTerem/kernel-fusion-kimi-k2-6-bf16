@@ -177,6 +177,50 @@ Options:
 
 ---
 
+## Proxy Model Testing (DeepSeek-V2-Lite)
+
+Running a clean dual-load numerical test on Kimi-K2.6 requires ~4 TB of GPU memory — two full copies of a 2 TB model. **DeepSeek-V2-Lite** (15.7B params, ~31 GB BF16) is a drop-in proxy: it uses the *exact same* MLA architecture with the same attribute names, so `patch_kimi_model()` applies to it without modification.
+
+Two copies of DeepSeek-V2-Lite fit on a single H100 80 GB (~62 GB combined), enabling a clean numerical comparison where the reference model and the fused model are loaded independently and never share weight state.
+
+### Step 1 — Download the proxy model
+
+```bash
+bash scripts/download_proxy_model.sh
+```
+
+Downloads `deepseek-ai/DeepSeek-V2-Lite` (~31 GB) to `models/DeepSeek-V2-Lite/`.
+
+### Step 2 — Run the dual-load proxy test
+
+```bash
+python tests/verify_fusion_proxy.py \
+    --model-path models/DeepSeek-V2-Lite \
+    --variant V2
+```
+
+This runs the same five tests as `verify_fusion.py`, but with a clean dual-load approach:
+- Phase A loads an unfused reference copy and saves reference logits
+- Phase B loads a second independent copy and applies the patch
+- Test 4 compares the two copies' logits directly — no shared state
+
+Options match `verify_fusion.py`: `--variant`, `--skip-throughput`, `--prompt`, `--throughput-tokens`.
+
+### Relationship to Kimi-K2.6
+
+| Property | DeepSeek-V2-Lite | Kimi-K2.6 |
+|---|---|---|
+| Parameters | 15.7B | ~1T |
+| Attention | MLA (identical structure) | MLA (identical structure) |
+| Hidden dim | 2048 | 7168 |
+| Layers | 27 | 61 |
+| `attn.scaling` | absent (computed inline) | present |
+| `apply_rotary_pos_emb` | module-level function | method on attn class |
+
+Both differences are handled automatically by `kimi_patch.py`'s `_resolve_rope_fn()` and `_resolve_scale()` helpers, which resolve the correct callable once at patch time.
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Purpose |
