@@ -1,0 +1,41 @@
+# requirements.txt — Kimi-K2.6 kernel-fusion project
+#
+# DO NOT add torch here.
+# It is installed separately by scripts/setup_runtime.sh because it requires
+# a specific --index-url that pip -r cannot pass:
+#   torch → https://download.pytorch.org/whl/cu128  (CUDA version specific)
+#
+# SGLang / FlashInfer are also excluded — add them in a separate
+# requirements-serving.txt when you are ready to serve the model.
+
+# ── Kernel fusion build ──────────────────────────────────────────────────────
+# pybind11 is required to JIT-compile denominator.cpp / denominator_kernel.cu
+# via torch.utils.cpp_extension.load() in src/load_cuda.py.
+pybind11>=2.12
+
+# ── Model loading ────────────────────────────────────────────────────────────
+# transformers: bullerwins/Kimi-K2.6-bf16 model card specifies >=4.57.1,<5.0.0.
+# The upper bound matters — transformers 5.x breaks the custom modeling code.
+transformers>=4.57.1,<5.0.0
+
+# accelerate: required for device_map="auto" in run.py / AutoModelForCausalLM
+accelerate>=0.33.0
+
+# safetensors: Kimi-K2.6 weights are stored in safetensors format
+safetensors>=0.4.0
+
+# huggingface_hub: model download and cache management
+huggingface_hub>=0.24.0
+
+# hf_transfer: C-based download accelerator; needed for
+# HF_HUB_ENABLE_HF_TRANSFER=1 (set in the venv activate by setup_runtime.sh)
+# to have any effect. Without this package the env var is silently ignored.
+hf_transfer>=0.1.4
+
+# ── Fusion verification (verify_fusion.py) ───────────────────────────────────
+numpy>=1.26.0
+tqdm>=4.66.0
+
+# nvidia-ml-py: Python bindings for NVML; reads live GPU memory and utilisation
+# during throughput tests in verify_fusion.py
+nvidia-ml-py>=12.560.30
