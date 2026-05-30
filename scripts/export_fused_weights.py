@@ -78,7 +78,7 @@ def main() -> None:
 
     print("Saving tokenizer ...")
     tokenizer = AutoTokenizer.from_pretrained(
-        args.model_path, trust_remote_code=args.trust_remote_code
+        args.model_path, trust_remote_code=True
     )
     tokenizer.save_pretrained(args.output_dir)
 
