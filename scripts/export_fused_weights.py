@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
 """
-Export a fused-weight HuggingFace checkpoint for NVFP4 quantization.
+In-place offline weight fusion for Kimi-K2.6 safetensors checkpoint.
 
-This does NOT use patch_kimi_model() or FusedRMSNormLinear CUDA modules.
-It writes gamma-absorbed weights into the original nn.Linear tensors and
-sets absorbed RMSNorm gammas to 1, then saves a new directory your teammate
-(or Model Optimizer / llm-compressor) can PTQ as a normal HF model.
+Fuses RMSNorm gammas into downstream Linear weights (W_new = W * gamma) and
+resets each absorbed norm's gamma to 1, directly on the safetensors shards.
+
+No second copy of the checkpoint is created — the model directory is modified
+in-place.  Peak memory is ~one shard (~5 GB), well within the 128 GB unified
+memory of a DGX Spark.
 
 Usage:
-    python scripts/export_fused_weights.py \\
-        --model-path models/Kimi-K2.6-bf16 \\
-        --output-dir models/Kimi-K2.6-bf16-fused-weights
+    python scripts/export_fused_weights.py --model-path /home/nvidia/Kimi-K2.6-bf16
 
-Requires ~2 TB free disk for a full Kimi export (new copy of weights).
-Run on a multi-GPU node (device_map=auto); use tmux for long saves.
-
-After export, quantize ONLY the output directory, e.g. Model Optimizer:
-    python examples/llm_ptq/hf_ptq.py \\
-        --pyt_ckpt_path models/Kimi-K2.6-bf16-fused-weights \\
-        --qformat nvfp4_mlp_only \\
-        --export_path models/Kimi-K2.6-NVFP4-fused-weights \\
-        ...
+After fusion, quantize the same directory with llm-compressor:
+    python nvfp4_quant_kimi.py   # update model_stub to point at model-path
 """
 
 from __future__ import annotations
@@ -33,58 +26,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-from src.weight_transforms.fuse_model_weights import fuse_model_weights
+from src.weight_transforms.fuse_model_weights import fuse_safetensors_inplace
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Export fused-weight BF16 checkpoint for NVFP4 PTQ"
+        description="In-place offline RMSNorm→Linear weight fusion for Kimi-K2.6"
     )
     parser.add_argument(
         "--model-path",
         required=True,
-        help="Input HF checkpoint (unfused BF16), e.g. models/Kimi-K2.6-bf16",
-    )
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="Output directory for fused-weight checkpoint",
+        help="HF checkpoint directory to fuse in-place (e.g. /home/nvidia/Kimi-K2.6-bf16)",
     )
     args = parser.parse_args()
 
-    if os.path.abspath(args.model_path) == os.path.abspath(args.output_dir):
-        raise SystemExit("Refusing to export in-place: --output-dir must differ from --model-path")
+    model_path = os.path.abspath(args.model_path)
+    if not os.path.isdir(model_path):
+        raise SystemExit(f"--model-path does not exist or is not a directory: {model_path}")
 
-    print(f"Loading model from {args.model_path} ...")
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-        trust_remote_code=True,
-        low_cpu_mem_usage=True,
-    )
-    model.eval()
+    print(f"Fusing weights in-place at: {model_path}")
+    print("WARNING: this modifies the checkpoint directory directly.")
+    print("         Make sure you have a backup if the original is needed.")
+    print()
 
-    n_layers = len(model.model.layers)
-    print(f"Fusing weights on {n_layers} decoder layers (in-place on module tensors) ...")
-    fuse_model_weights(model, inplace=True)
+    fuse_safetensors_inplace(model_path)
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    print(f"Saving fused checkpoint to {args.output_dir} ...")
-    model.save_pretrained(args.output_dir, safe_serialization=True, max_shard_size="5GB")
-
-    print("Saving tokenizer ...")
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.model_path, trust_remote_code=True
-    )
-    tokenizer.save_pretrained(args.output_dir)
-
+    print()
     print("Done.")
-    print(f"  Fused BF16 weights: {args.output_dir}")
-    print("  Next: run NVFP4 PTQ on this directory (not on patch_kimi_model output).")
+    print(f"  Fused checkpoint: {model_path}")
+    print("  Next: run NVFP4 PTQ on this directory with nvfp4_quant_kimi.py")
 
 
 if __name__ == "__main__":
